@@ -1,12 +1,13 @@
 """
 Health Coach Agent
 Orchestrates three modes:
-  1. onboard  — extract patient profile from free text
-  2. checkin  — run adaptive daily check-in
-  3. qa       — answer protocol questions with RAG
+  1. onboard  - extract patient profile from free text
+  2. checkin  - run adaptive daily check-in
+  3. qa       - answer protocol questions with RAG
 """
 
 import json
+import re
 import os
 import sys
 
@@ -37,7 +38,6 @@ def _get_client():
 
 
 def _call_claude(prompt: str, max_tokens: int = 800) -> str:
-    """Single call to Claude with a user prompt."""
     client = _get_client()
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -47,49 +47,44 @@ def _call_claude(prompt: str, max_tokens: int = 800) -> str:
     return response.content[0].text.strip()
 
 
+def _parse_json_safe(raw: str, fallback: dict) -> dict:
+    """Robustly extract JSON from LLM response."""
+    try:
+        # Remove code fences
+        clean = re.sub(r'```(?:json)?', '', raw).strip()
+        # Find outermost { }
+        start = clean.find("{")
+        end = clean.rfind("}") + 1
+        if start != -1 and end > start:
+            clean = clean[start:end]
+        return json.loads(clean)
+    except Exception:
+        return fallback
+
+
 def onboard_patient(session_id: str, onboarding_text: str) -> dict:
-    """
-    Extract structured profile from free-text onboarding input.
-    Returns the extracted profile dict.
-    """
     prompt = PROFILE_EXTRACTION_PROMPT.format(onboarding_text=onboarding_text)
     raw = _call_claude(prompt, max_tokens=600)
 
-    # Parse JSON safely
-    try:
-        # Handle code blocks if model adds them
-        if "```" in raw:
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        profile = json.loads(raw.strip())
-    except json.JSONDecodeError:
-        # Fallback profile
-        profile = {
-            "name": None,
-            "age": None,
-            "wellness_goals": ["general wellness"],
-            "sleep_hours": None,
-            "sleep_quality": None,
-            "activity_level": None,
-            "diet_notes": None,
-            "health_concerns": [],
-            "other_notes": onboarding_text[:200]
-        }
+    fallback = {
+        "name": None,
+        "age": None,
+        "wellness_goals": ["general wellness"],
+        "sleep_hours": None,
+        "sleep_quality": None,
+        "activity_level": None,
+        "diet_notes": None,
+        "health_concerns": [],
+        "other_notes": onboarding_text[:200]
+    }
+    profile = _parse_json_safe(raw, fallback)
 
     session_store.update_profile(session_id, profile)
     session_store.add_message(session_id, "user", onboarding_text)
-
     return profile
 
 
 def run_checkin(session_id: str, user_message: str = "") -> str:
-    """
-    Run or continue a daily check-in.
-    If user_message is empty, starts the check-in.
-    If user_message has content, continues the conversation.
-    """
-    # Record user message
     if user_message:
         session_store.add_message(session_id, "user", user_message)
 
@@ -111,9 +106,6 @@ def run_checkin(session_id: str, user_message: str = "") -> str:
 
 
 def answer_question(session_id: str, question: str) -> str:
-    """
-    Answer a protocol-bounded question using RAG.
-    """
     session_store.add_message(session_id, "user", question)
 
     day = session_store.get_day(session_id)
@@ -132,10 +124,6 @@ def answer_question(session_id: str, question: str) -> str:
 
 
 def classify_message(message: str) -> str:
-    """
-    Classify whether a message is a check-in response or a protocol question.
-    Simple heuristic — no extra LLM call needed.
-    """
     question_words = ["can i", "should i", "what is", "how many", "is it ok",
                       "allowed", "what does", "when should", "why", "what about",
                       "how do", "what are", "?"]
@@ -147,23 +135,17 @@ def classify_message(message: str) -> str:
 
 
 def chat(session_id: str, message: str) -> dict:
-    """
-    Main entry point. Routes to correct agent mode.
-    Returns {response, mode, day, profile_complete}
-    """
     if not session_store.is_onboarded(session_id):
-        # First message = onboarding
         profile = onboard_patient(session_id, message)
         day = session_store.get_day(session_id)
         protocol_context = get_day_protocol(day)
 
-        # Generate warm welcome after profile extraction
         name = profile.get("name") or "there"
         goals = profile.get("wellness_goals", ["your wellness"])
         goals_str = ", ".join(goals[:2]) if goals else "your wellness"
 
         welcome_prompt = f"""You are a warm health coach. A new patient just onboarded with these goals: {goals_str}.
-Their name is {name}. It's their Day 1.
+Their name is {name}. It is their Day 1.
 
 Protocol context for Day 1:
 {protocol_context}
@@ -171,7 +153,7 @@ Protocol context for Day 1:
 Write a warm, personal welcome message (under 120 words) that:
 1. Greets them by name
 2. Acknowledges their specific goals
-3. Explains you'll do daily check-ins
+3. Explains you will do daily check-ins
 4. Asks one simple opening question (how did they sleep last night?)
 
 Be warm but not over the top. Like a knowledgeable friend."""
@@ -187,7 +169,6 @@ Be warm but not over the top. Like a knowledgeable friend."""
             "profile": profile
         }
 
-    # Classify and route
     mode = classify_message(message)
     day = session_store.get_day(session_id)
 
