@@ -1,4 +1,4 @@
-import json, re, os, sys
+﻿import json, re, os, sys, traceback
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from prompts.prompts import PROFILE_EXTRACTION_PROMPT, CHECKIN_PROMPT, QA_PROMPT
 from rag.retriever import retrieve, get_day_protocol
@@ -35,20 +35,28 @@ def _parse_json_safe(raw, fallback):
         end = clean.rfind("}") + 1
         if start != -1 and end > start:
             clean = clean[start:end]
-        return json.loads(clean)
+        result = json.loads(clean)
+        if isinstance(result, dict):
+            return result
+        return fallback
     except Exception:
         return fallback
 
 def onboard_patient(session_id, onboarding_text):
-    prompt = PROFILE_EXTRACTION_PROMPT.format(onboarding_text=onboarding_text)
-    raw = _call_claude(prompt, max_tokens=600)
-    fallback = {"name": None, "age": None, "wellness_goals": ["general wellness"],
-                "sleep_hours": None, "sleep_quality": None, "activity_level": None,
-                "diet_notes": None, "health_concerns": [], "other_notes": onboarding_text[:200]}
-    profile = _parse_json_safe(raw, fallback)
-    session_store.update_profile(session_id, profile)
-    session_store.add_message(session_id, "user", onboarding_text)
-    return profile
+    try:
+        prompt = PROFILE_EXTRACTION_PROMPT.format(onboarding_text=onboarding_text)
+        raw = _call_claude(prompt, max_tokens=600)
+        fallback = {"name": None, "age": None, "wellness_goals": ["general wellness"],
+                    "sleep_hours": None, "sleep_quality": None, "activity_level": None,
+                    "diet_notes": None, "health_concerns": [], "other_notes": onboarding_text[:200]}
+        profile = _parse_json_safe(raw, fallback)
+        if not isinstance(profile, dict):
+            profile = fallback
+        session_store.update_profile(session_id, profile)
+        session_store.add_message(session_id, "user", onboarding_text)
+        return profile
+    except Exception as e:
+        raise Exception(f"onboard_patient failed: {traceback.format_exc()}")
 
 def run_checkin(session_id, user_message=""):
     if user_message:
