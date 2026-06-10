@@ -141,7 +141,8 @@ def chat_endpoint(body: ChatRequest):
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+        import traceback
+	raise HTTPException(status_code=500, detail=traceback.format_exc())
 
 
 @app.post("/checkin/start/{session_id}")
