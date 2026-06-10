@@ -1,11 +1,11 @@
-"""
+﻿"""
 FastAPI backend for Health Coach Agent
 Routes:
-  POST /chat          — main chat endpoint
-  POST /session/new   — create session
-  GET  /session/{id}  — get session state
-  POST /session/{id}/day — update day number
-  GET  /health        — health check
+  POST /chat          â€” main chat endpoint
+  POST /session/new   â€” create session
+  GET  /session/{id}  â€” get session state
+  POST /session/{id}/day â€” update day number
+  GET  /health        â€” health check
 """
 
 import uuid
@@ -52,7 +52,7 @@ def serve_frontend():
     return {"message": "Health Coach API is running. Frontend not found."}
 
 
-# ── Request/Response models ──────────────────────────────────────────────────
+# â”€â”€ Request/Response models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -76,7 +76,7 @@ class DayUpdateRequest(BaseModel):
     day: int
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────
+# â”€â”€ Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/health")
 def health_check():
@@ -142,12 +142,12 @@ def chat_endpoint(body: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         import traceback
-	raise HTTPException(status_code=500, detail=traceback.format_exc())
+    raise HTTPException(status_code=500, detail=traceback.format_exc())
 
 
 @app.post("/checkin/start/{session_id}")
 def start_checkin(session_id: str):
-    """Start a daily check-in (no user message needed — agent opens)."""
+    """Start a daily check-in (no user message needed â€” agent opens)."""
     if not session_store.is_onboarded(session_id):
         raise HTTPException(status_code=400, detail="Complete onboarding first")
     response = run_checkin(session_id, user_message="")
@@ -158,3 +158,4 @@ def start_checkin(session_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
