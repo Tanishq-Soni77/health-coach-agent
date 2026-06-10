@@ -1,6 +1,6 @@
-fastapi
+﻿fastapi
 uvicorn[standard]
-anthropic
+google-generativeai
 python-dotenv
 python-multipart
 aiofiles
