@@ -1,4 +1,4 @@
-﻿import json, re, os, sys, traceback
+import json, re, os, sys, traceback
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from prompts.prompts import PROFILE_EXTRACTION_PROMPT, CHECKIN_PROMPT, QA_PROMPT
 from rag.retriever import retrieve, get_day_protocol
@@ -14,7 +14,7 @@ def _get_model():
         if not api_key:
             raise ValueError("GEMINI_API_KEY not set")
         genai.configure(api_key=api_key)
-        _model = genai.GenerativeModel("gemini-1.5-flash")
+        _model = genai.GenerativeModel("gemini-2.0-flash")
     return _model
 
 def _call_llm(prompt, max_tokens=800):
